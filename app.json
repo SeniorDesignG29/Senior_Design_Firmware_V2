@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Scooby Snack",
+    "slug": "scooby-snack",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#6366F1"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.smdg29.scoobysnack",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to connect to your pill dispenser",
+        "NSBluetoothPeripheralUsageDescription": "This app uses Bluetooth to connect to your pill dispenser"
+      }
+    },
+    "android": {
+      "package": "com.smdg29.scoobysnack",
+      "permissions": [
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_CONNECT",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-audio",
+      "@react-native-community/datetimepicker"
+    ]
+  }
+}
