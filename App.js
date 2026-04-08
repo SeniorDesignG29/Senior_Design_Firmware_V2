@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -23,7 +23,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 const Tab = createBottomTabNavigator();
 const ELEVENLABS_API_KEY = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ?? '';
 const DEFAULT_USER_NAME = 'Space Cowboy';
-const STORAGE_FILE_PATH = `${FileSystem.documentDirectory}medication-app-data.json`;
+const STORAGE_ROOT = FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? '';
+const STORAGE_FILE_PATH = STORAGE_ROOT ? `${STORAGE_ROOT}medication-app-data.json` : '';
+const UTF8_ENCODING = 'utf8';
 const DEFAULT_TIME_VALUE = '08:00 AM';
 const DEFAULT_USER_MEDICATIONS = [
   { id: 1, name: 'Oompa lompa Medicine', time: '08:00 AM', slot: 1 },
@@ -34,25 +36,25 @@ const VOICE_PROFILES = [
   {
     id: 'guide',
     label: 'Calm Guide',
-    voiceId: 'hpp4J3VqNfWAUOO0d1Us',
+    voiceId: 'Xb7hH8MSUJpSbSDYk0k2',
     personality: 'a calm, clear medication coach who speaks with warmth, patience, and simple reassuring language',
   },
   {
     id: 'cheer',
     label: 'Bright Cheer',
-    voiceId: 'SAz9YHcvj6GT2YYXdXww',
+    voiceId: 'TxGi1N29NQoCaYD4fcU5',
     personality: 'an upbeat encourager who sounds positive, energizing, and celebratory without being too loud',
   },
   {
     id: 'companion',
     label: 'Gentle Companion',
-    voiceId: 'pFZP5JQG7iQjIQuC4Bku',
+    voiceId: 'nPczCjzI2devNBz1zQrb',
     personality: 'a kind supportive companion who sounds caring, steady, and thoughtful during reminders',
   },
   {
     id: 'coach',
     label: 'Focused Coach',
-    voiceId: 'nPczCjzI2devNBz1zQrb',
+    voiceId: 'cjVigY5qzO86Huf0OWal',
     personality: 'a confident health coach who sounds direct, motivating, and encouraging for daily routines',
   },
 ];
@@ -71,6 +73,7 @@ function createDefaultUserRecord(username, password) {
       userName: username || DEFAULT_USER_NAME,
     },
     medications: DEFAULT_USER_MEDICATIONS.map((medication) => ({ ...medication })),
+    dispenseHistory: [],
   };
 }
 
@@ -81,22 +84,28 @@ function getDefaultStorage() {
 }
 
 async function ensureStorageFile() {
+  if (!STORAGE_FILE_PATH) {
+    return;
+  }
   const fileInfo = await FileSystem.getInfoAsync(STORAGE_FILE_PATH);
 
   if (!fileInfo.exists) {
     await FileSystem.writeAsStringAsync(
       STORAGE_FILE_PATH,
       JSON.stringify(getDefaultStorage()),
-      { encoding: FileSystem.EncodingType.UTF8 }
+      { encoding: UTF8_ENCODING }
     );
   }
 }
 
 async function readStorage() {
   try {
+    if (!STORAGE_FILE_PATH) {
+      return getDefaultStorage();
+    }
     await ensureStorageFile();
     const raw = await FileSystem.readAsStringAsync(STORAGE_FILE_PATH, {
-      encoding: FileSystem.EncodingType.UTF8,
+      encoding: UTF8_ENCODING,
     });
     return raw ? JSON.parse(raw) : getDefaultStorage();
   } catch (error) {
@@ -105,8 +114,11 @@ async function readStorage() {
 }
 
 async function writeStorage(data) {
+  if (!STORAGE_FILE_PATH) {
+    return;
+  }
   await FileSystem.writeAsStringAsync(STORAGE_FILE_PATH, JSON.stringify(data), {
-    encoding: FileSystem.EncodingType.UTF8,
+    encoding: UTF8_ENCODING,
   });
 }
 
@@ -171,6 +183,53 @@ function getNextMedication(medications) {
   return sorted[0];
 }
 
+function calculateAdherence(dispenseHistory, medications) {
+  if (!medications.length) return 0;
+  
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  const totalScheduled = medications.length * 7;
+  
+  const recentDispenses = dispenseHistory.filter(
+    (dispense) => new Date(dispense.timestamp) >= sevenDaysAgo
+  );
+  
+  if (totalScheduled === 0) return 0;
+  
+  const adherence = Math.min(100, Math.round((recentDispenses.length / totalScheduled) * 100));
+  return adherence;
+}
+
+function calculateStreak(dispenseHistory) {
+  if (!dispenseHistory.length) return 0;
+  
+  const sorted = [...dispenseHistory].sort(
+    (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+  );
+  
+  let streak = 0;
+  let currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+  
+  for (let i = 0; i < 365; i++) {
+    const dayDispenses = sorted.filter((d) => {
+      const dispenseDate = new Date(d.timestamp);
+      dispenseDate.setHours(0, 0, 0, 0);
+      return dispenseDate.getTime() === currentDate.getTime();
+    });
+    
+    if (dayDispenses.length > 0) {
+      streak++;
+      currentDate.setDate(currentDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  
+  return streak;
+}
+
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -193,14 +252,44 @@ function blobToBase64(blob) {
 }
 
 async function createPlayableAudioFile(audioBlob) {
-  const base64Audio = await blobToBase64(audioBlob);
-  const audioFilePath = `${FileSystem.cacheDirectory}voice-preview-${Date.now()}.mp3`;
-
-  await FileSystem.writeAsStringAsync(audioFilePath, base64Audio, { encoding: 'base64' });
-  return audioFilePath;
+  try {
+    // Try to get any available directory
+    let audioDir = FileSystem.cacheDirectory;
+    
+    if (!audioDir) {
+      audioDir = FileSystem.documentDirectory;
+    }
+    
+    if (!audioDir) {
+      // Last resort - try to use a temp path
+      console.error('No filesystem access available');
+      return null;
+    }
+    
+    // Ensure the directory exists
+    const dirInfo = await FileSystem.getInfoAsync(audioDir);
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(audioDir, { intermediates: true });
+    }
+    
+    const base64Audio = await blobToBase64(audioBlob);
+    const audioFilePath = `${audioDir}voice-${Date.now()}.mp3`;
+    
+    console.log('Creating audio file at:', audioFilePath);
+    await FileSystem.writeAsStringAsync(audioFilePath, base64Audio, { encoding: 'base64' });
+    
+    return audioFilePath;
+  } catch (error) {
+    console.error('Error creating audio file:', error);
+    return null;
+  }
 }
 
 function buildVoicePrompt(message, userName, profile) {
+  if (message.length < 20) {
+    return message;
+  }
+  
   return `You are ${profile.label}. You are ${profile.personality}. Speak naturally in one or two short sentences. User name: ${userName}. Message: ${message}`;
 }
 
@@ -217,12 +306,13 @@ async function speakText(message, options = {}) {
   const profile = getVoiceProfile(profileId);
 
   if (!ELEVENLABS_API_KEY) {
-    Alert.alert('Missing API Key', 'Set EXPO_PUBLIC_ELEVENLABS_API_KEY before testing voice playback.');
     return;
   }
 
   try {
-    const response = await fetch('https://api.elevenlabs.io/v1/text-to-speech/11labs-voice-id', {
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${profile.voiceId}`;
+    
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'xi-api-key': ELEVENLABS_API_KEY,
@@ -234,10 +324,20 @@ async function speakText(message, options = {}) {
       }),
     });
 
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Voice API error:', response.status, errorText);
+      return;
+    }
 
     const blob = await response.blob();
     const audioFilePath = await createPlayableAudioFile(blob);
+    
+    // Check if we got a valid audio file path
+    if (!audioFilePath) {
+      console.warn('Could not create audio file, skipping voice');
+      return;
+    }
 
     await stopActiveSound();
 
@@ -253,9 +353,10 @@ async function speakText(message, options = {}) {
 
     activeSound = sound;
     await sound.playAsync();
+    
   } catch (error) {
+    console.error('Voice error:', error);
     if (activeSound) activeSound.unloadAsync().catch(() => {});
-    Alert.alert('Voice Error', error.message);
   }
 }
 
@@ -304,7 +405,7 @@ function TimeWheelColumn({ items, selectedValue, onSelect }) {
   );
 }
 
-function TimePickerModal({ visible, value, onCancel, onConfirm }) {
+function TimePickerModal({ visible, value, onCancel, onConfirm, voiceOptions }) {
   const parsed = parseTimeValue(value);
   const [selectedHours, setSelectedHours] = useState(parsed.hours);
   const [selectedMinutes, setSelectedMinutes] = useState(parsed.minutes);
@@ -327,9 +428,11 @@ function TimePickerModal({ visible, value, onCancel, onConfirm }) {
             </TouchableOpacity>
             <Text style={styles.timePickerTitle}>Set Medication Time</Text>
             <TouchableOpacity
-              onPress={() =>
-                onConfirm(formatTimeFromParts(selectedHours, selectedMinutes, selectedPeriod))
-              }
+              onPress={() => {
+                const timeValue = formatTimeFromParts(selectedHours, selectedMinutes, selectedPeriod);
+                speakText('Time set', voiceOptions);
+                onConfirm(timeValue);
+              }}
             >
               <Text style={styles.timePickerDone}>Done</Text>
             </TouchableOpacity>
@@ -373,7 +476,7 @@ function AuthScreen({ onLogin, onRegister, voiceOptions }) {
 
     if (!trimmedUsername || !trimmedPassword) {
       Alert.alert('Missing Details', 'Enter both a username and password.');
-      speakText('Please enter both a username and password.', voiceOptions);
+      speakText('Missing details', voiceOptions);
       return;
     }
 
@@ -456,7 +559,7 @@ function AuthScreen({ onLogin, onRegister, voiceOptions }) {
   );
 }
 
-function HomeScreen({ navigation, voiceOptions, medications }) {
+function HomeScreen({ navigation, voiceOptions, medications, onRecordDispense }) {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -506,15 +609,17 @@ function HomeScreen({ navigation, voiceOptions, medications }) {
             </View>
             <TouchableOpacity
               style={styles.takeButton}
-              onPress={() =>
-                handlePressWithVoice(
-                  null,
-                  nextMedication
-                    ? `Time for ${nextMedication.name}, ${voiceOptions.userName}.`
-                    : 'You do not have a medication scheduled yet.',
-                  voiceOptions
-                )
-              }
+              onPress={() => {
+                if (nextMedication) {
+                  onRecordDispense(nextMedication);
+                } else {
+                  handlePressWithVoice(
+                    () => navigation.navigate('Medications'),
+                    'Medications',
+                    voiceOptions
+                  );
+                }
+              }}
             >
               <Text style={styles.takeButtonText}>
                 {nextMedication ? 'Take Now' : 'Add a Medication'}
@@ -523,8 +628,8 @@ function HomeScreen({ navigation, voiceOptions, medications }) {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.streakText}>🔥 5 Day Streak!</Text>
-            <Text style={styles.streakSubtext}>Keep up the great work!</Text>
+            <Text style={styles.streakText}>🔥 Keep Your Streak Going!</Text>
+            <Text style={styles.streakSubtext}>Track your progress in Insights</Text>
           </View>
 
           <View style={styles.card}>
@@ -534,7 +639,7 @@ function HomeScreen({ navigation, voiceOptions, medications }) {
               onPress={() =>
                 handlePressWithVoice(
                   () => navigation.navigate('Medications'),
-                  'Opening your medications.',
+                  'Medications',
                   voiceOptions
                 )
               }
@@ -546,7 +651,7 @@ function HomeScreen({ navigation, voiceOptions, medications }) {
               onPress={() =>
                 handlePressWithVoice(
                   () => navigation.navigate('Insights'),
-                  'Opening your progress insights.',
+                  'Insights',
                   voiceOptions
                 )
               }
@@ -571,7 +676,7 @@ function MedicationsScreen({ voiceOptions, medications, onSaveMedications }) {
 
     if (!trimmedName || !newMedTime) {
       Alert.alert('Missing Details', 'Enter both a medication name and time.');
-      speakText('Please enter name and time.', voiceOptions);
+      speakText('Missing details', voiceOptions);
       return;
     }
 
@@ -587,7 +692,7 @@ function MedicationsScreen({ voiceOptions, medications, onSaveMedications }) {
     setNewMedTime(DEFAULT_TIME_VALUE);
     setShowAddForm(false);
     Alert.alert('Success', 'Medication added!');
-    speakText(`Added ${trimmedName} for ${newMedTime}.`, voiceOptions);
+    speakText('Added', voiceOptions);
   };
 
   return (
@@ -608,13 +713,7 @@ function MedicationsScreen({ voiceOptions, medications, onSaveMedications }) {
             <TouchableOpacity
               key={med.id}
               style={styles.medCard}
-              onPress={() =>
-                handlePressWithVoice(
-                  null,
-                  `${med.name}, scheduled for ${med.time}, slot ${med.slot}.`,
-                  voiceOptions
-                )
-              }
+              onPress={() => speakText(med.name, voiceOptions)}
             >
               <View style={styles.medIconSmall}>
                 <Text style={styles.cardEmoji}>💊</Text>
@@ -633,7 +732,7 @@ function MedicationsScreen({ voiceOptions, medications, onSaveMedications }) {
               onPress={() =>
                 handlePressWithVoice(
                   () => setShowAddForm(true),
-                  'Opening the add medication form.',
+                  'Add',
                   voiceOptions
                 )
               }
@@ -669,7 +768,7 @@ function MedicationsScreen({ voiceOptions, medications, onSaveMedications }) {
                   onPress={() =>
                     handlePressWithVoice(
                       () => setShowAddForm(false),
-                      'Cancelled.',
+                      'Cancel',
                       voiceOptions
                     )
                   }
@@ -692,22 +791,28 @@ function MedicationsScreen({ voiceOptions, medications, onSaveMedications }) {
       <TimePickerModal
         visible={isTimePickerVisible}
         value={newMedTime}
+        voiceOptions={voiceOptions}
         onCancel={() => setIsTimePickerVisible(false)}
         onConfirm={(timeValue) => {
           setNewMedTime(timeValue);
           setIsTimePickerVisible(false);
-          speakText(`Time set to ${timeValue}.`, voiceOptions);
         }}
       />
     </LinearGradient>
   );
 }
 
-function InsightsScreen({ voiceOptions, medications }) {
-  const adherence = 85;
-  const streak = 5;
-  const totalTaken = Math.max(0, medications.length * 5);
-  const totalScheduled = Math.max(totalTaken + 3, medications.length * 6);
+function InsightsScreen({ voiceOptions, medications, dispenseHistory = [] }) {
+  const adherence = calculateAdherence(dispenseHistory, medications);
+  const streak = calculateStreak(dispenseHistory);
+  
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const totalTaken = dispenseHistory.filter(
+    (d) => new Date(d.timestamp) >= sevenDaysAgo
+  ).length;
+  
+  const totalScheduled = medications.length * 7;
 
   return (
     <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
@@ -724,35 +829,22 @@ function InsightsScreen({ voiceOptions, medications }) {
 
           <TouchableOpacity
             style={styles.progressCard}
-            onPress={() =>
-              handlePressWithVoice(
-                null,
-                `${adherence} percent adherence. ${totalTaken} of ${totalScheduled} taken this week.`,
-                voiceOptions
-              )
-            }
+            onPress={() => speakText(`${adherence} percent`, voiceOptions)}
           >
             <View style={styles.progressCircle}>
               <Text style={styles.progressPercent}>{adherence}%</Text>
               <Text style={styles.progressLabel}>Adherence</Text>
             </View>
             <Text style={styles.progressText}>
-              You've taken {totalTaken} out of {totalScheduled} medications this week!
+              {totalTaken > 0 
+                ? `You've taken ${totalTaken} out of ${totalScheduled} medications this week!`
+                : 'Start taking your medications to track adherence!'}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.badgeCard}
-            onPress={() => handlePressWithVoice(null, 'Star badge earned.', voiceOptions)}
-          >
-            <Text style={styles.heroEmoji}>⭐</Text>
-            <Text style={styles.badgeName}>Star</Text>
-            <Text style={styles.badgeMessage}>Keep up the great work!</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
             style={styles.streakCard}
-            onPress={() => handlePressWithVoice(null, `${streak} day streak.`, voiceOptions)}
+            onPress={() => speakText(`${streak} day streak`, voiceOptions)}
           >
             <Text style={styles.streakEmoji}>🔥</Text>
             <Text style={styles.streakNumber}>{streak}</Text>
@@ -762,44 +854,42 @@ function InsightsScreen({ voiceOptions, medications }) {
           <View style={styles.statsGrid}>
             <TouchableOpacity
               style={styles.statCard}
-              onPress={() => handlePressWithVoice(null, `${totalTaken} taken.`, voiceOptions)}
+              onPress={() => speakText(`${totalTaken} taken`, voiceOptions)}
             >
               <Text style={styles.statNumber}>{totalTaken}</Text>
               <Text style={styles.statLabel}>Taken</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.statCard}
-              onPress={() =>
-                handlePressWithVoice(null, `${totalScheduled - totalTaken} missed.`, voiceOptions)
-              }
+              onPress={() => speakText(`${Math.max(0, totalScheduled - totalTaken)} missed`, voiceOptions)}
             >
-              <Text style={styles.statNumber}>{totalScheduled - totalTaken}</Text>
+              <Text style={styles.statNumber}>{Math.max(0, totalScheduled - totalTaken)}</Text>
               <Text style={styles.statLabel}>Missed</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.statCard}
-              onPress={() => handlePressWithVoice(null, `${streak} day streak.`, voiceOptions)}
+              onPress={() => speakText(`${streak} days`, voiceOptions)}
             >
               <Text style={styles.statNumber}>{streak}</Text>
               <Text style={styles.statLabel}>Streak</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.statCard}
-              onPress={() => handlePressWithVoice(null, `${adherence} percent score.`, voiceOptions)}
+              onPress={() => speakText(`${adherence} percent`, voiceOptions)}
             >
               <Text style={styles.statNumber}>{adherence}%</Text>
               <Text style={styles.statLabel}>Score</Text>
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={styles.motivationCard}
-            onPress={() =>
-              handlePressWithVoice(null, `Amazing progress, ${voiceOptions.userName}.`, voiceOptions)
-            }
-          >
-            <Text style={styles.motivationText}>💪 Amazing progress! You're doing great!</Text>
-          </TouchableOpacity>
+          {adherence > 0 && (
+            <TouchableOpacity
+              style={styles.motivationCard}
+              onPress={() => speakText('Great progress', voiceOptions)}
+            >
+              <Text style={styles.motivationText}>💪 Amazing progress! You're doing great!</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={styles.spacer} />
         </ScrollView>
@@ -818,13 +908,12 @@ function VoiceSettings({
 }) {
   const [draftName, setDraftName] = useState(userName);
   const [isTesting, setIsTesting] = useState(false);
-  const activeProfile = getVoiceProfile(selectedProfileId);
 
   const handleSaveName = () => {
     const nextName = draftName.trim() || DEFAULT_USER_NAME;
     onChangeUserName(nextName);
     Alert.alert('Saved', `Your voice assistant will call you ${nextName}.`);
-    speakText(`I'll call you ${nextName}.`, {
+    speakText(`Hello ${nextName}`, {
       profileId: selectedProfileId,
       userName: nextName,
     });
@@ -832,7 +921,7 @@ function VoiceSettings({
 
   const handleTestVoice = async () => {
     setIsTesting(true);
-    await speakText(`Hi ${userName}. This is your ${activeProfile.label} voice.`, {
+    await speakText(`Hello ${userName}`, {
       profileId: selectedProfileId,
       userName,
     });
@@ -884,7 +973,7 @@ function VoiceSettings({
                   style={[styles.voiceOption, isSelected && styles.voiceOptionSelected]}
                   onPress={() => {
                     onSelectProfile(profile.id);
-                    speakText(`${profile.label}`, { profileId: profile.id, userName });
+                    speakText(profile.label, { profileId: profile.id, userName });
                   }}
                 >
                   <View style={styles.voiceOptionHeader}>
@@ -943,6 +1032,7 @@ export default function App() {
   const selectedProfileId =
     currentUserRecord?.preferences?.selectedProfileId ?? DEFAULT_VOICE_PROFILE_ID;
   const medications = currentUserRecord?.medications ?? [];
+  const dispenseHistory = currentUserRecord?.dispenseHistory ?? [];
   const voiceOptions = { profileId: selectedProfileId, userName };
 
   const updateStorage = async (updater) => {
@@ -954,7 +1044,7 @@ export default function App() {
   const handleRegister = async (username, password) => {
     if (storage.users[username]) {
       Alert.alert('Account Exists', 'That username already exists.');
-      speakText('That username is already taken.', voiceOptions);
+      speakText('Username taken', voiceOptions);
       return;
     }
 
@@ -975,7 +1065,7 @@ export default function App() {
 
     if (!matchedUser || matchedUser.password !== password) {
       Alert.alert('Login Failed', 'Incorrect username or password.');
-      speakText('Login failed. Please check your username and password.', voiceOptions);
+      speakText('Login failed', voiceOptions);
       return;
     }
 
@@ -1002,6 +1092,35 @@ export default function App() {
         },
       },
     }));
+  };
+
+  const handleRecordDispense = async (medication) => {
+    if (!currentUsername || !medication) return;
+
+    const dispenseRecord = {
+      id: Date.now(),
+      medicationId: medication.id,
+      medicationName: medication.name,
+      timestamp: new Date().toISOString(),
+      slot: medication.slot,
+    };
+
+    await updateStorage((current) => ({
+      ...current,
+      users: {
+        ...current.users,
+        [currentUsername]: {
+          ...current.users[currentUsername],
+          dispenseHistory: [
+            ...(current.users[currentUsername].dispenseHistory || []),
+            dispenseRecord,
+          ],
+        },
+      },
+    }));
+
+    Alert.alert('Success', `${medication.name} taken!`);
+    speakText('Taken', voiceOptions);
   };
 
   const handleChangeUserName = async (nextName) => {
@@ -1092,7 +1211,12 @@ export default function App() {
             listeners={{ tabPress: () => speakText('Home', voiceOptions) }}
           >
             {(props) => (
-              <HomeScreen {...props} voiceOptions={voiceOptions} medications={medications} />
+              <HomeScreen 
+                {...props} 
+                voiceOptions={voiceOptions} 
+                medications={medications}
+                onRecordDispense={handleRecordDispense}
+              />
             )}
           </Tab.Screen>
           <Tab.Screen
@@ -1115,12 +1239,17 @@ export default function App() {
             listeners={{ tabPress: () => speakText('Insights', voiceOptions) }}
           >
             {(props) => (
-              <InsightsScreen {...props} voiceOptions={voiceOptions} medications={medications} />
+              <InsightsScreen 
+                {...props} 
+                voiceOptions={voiceOptions} 
+                medications={medications}
+                dispenseHistory={dispenseHistory}
+              />
             )}
           </Tab.Screen>
           <Tab.Screen
             name="Voice"
-            listeners={{ tabPress: () => speakText('Voice settings', voiceOptions) }}
+            listeners={{ tabPress: () => speakText('Settings', voiceOptions) }}
           >
             {(props) => (
               <VoiceSettings
@@ -1236,25 +1365,6 @@ const styles = StyleSheet.create({
   authTitle: {
     color: '#fff',
     fontSize: 34,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  badgeCard: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 20,
-    marginBottom: 20,
-    marginHorizontal: 20,
-    padding: 30,
-  },
-  badgeMessage: {
-    color: '#666',
-    fontSize: 18,
-    textAlign: 'center',
-  },
-  badgeName: {
-    color: '#333',
-    fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 10,
   },
