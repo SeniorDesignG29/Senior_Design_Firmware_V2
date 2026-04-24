@@ -1,451 +1,298 @@
-# 🏥 SMDG29 Automated Pill Dispenser
+# 💊 Scooby Snack — Automated Medication Dispenser
+### SMDG29 | University of Illinois Chicago | Senior Design Capstone
 
-A complete smart medication dispenser system with ESP32 hardware and cross-platform mobile app.
+A smart, voice-enabled automated medication dispenser for elderly users. The system combines an ESP32-based hardware dispenser with a cross-platform mobile app (iOS, Android, Web) to schedule, dispense, and track medication while notifying caregivers in real time.
+
+---
+
+## 📸 System Overview
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   Scooby Snack System               │
+│                                                     │
+│   ┌──────────────┐         ┌────────────────────┐   │
+│   │   Mobile App │  WiFi   │  ESP32 Hardware    │   │
+│   │  iOS/Android │◄──────► │  Dispenser Unit    │   │
+│   │     Web      │         │                    │   │
+│   └──────────────┘         └────────────────────┘   │
+│          │                          │               │
+│          ▼                          ▼               │
+│   ┌─────────────┐         ┌────────────────────┐    │
+│   │  Pushover   │         │  Peristaltic Pump  │    │
+│   │  Caregiver  │         │  Stepper Motor     │    │
+│   │  Alerts     │         │  IR Sensor         │    │
+│   └─────────────┘         │  OLED Display      │    │
+│                           │  DS3231 RTC        │    │
+│                           └────────────────────┘    │
+└─────────────────────────────────────────────────────┘
+```
+
+---
 
 ## ✨ Features
 
-### Hardware (ESP32)
-- ✅ Bluetooth Low Energy (BLE) communication
-- ✅ 8-slot medication carousel with TMC2209 stepper drivers
-- ✅ Real-time clock (DS3231) for scheduling
-- ✅ Automated dispensing with sensor verification
-- ✅ Audio alerts via buzzer
-- ✅ I2C LCD display support
+### Hardware
+- Star-wheel mechanism with Nema 17 stepper motor (TB6600 driver)
+- DS3231 RTC for precise medication scheduling
+- SH1107 128×128 OLED display showing patient name, medication, and next dose time
+- INTLLAB peristaltic pump for liquid medication delivery
+- GP2A200LCS0F IR reflective sensor for pill detection and logging
+- XY-MOS MOSFET module for pump control
+- WiFi web server for app communication
 
-### Mobile App (React Native/Expo)
-- ✅ Cross-platform (iOS & Android)
-- ✅ Modern, beautiful UI with gradient designs
-- ✅ Human-like voice feedback (ElevenLabs integration)
-- ✅ BLE device pairing and control
-- ✅ Medication scheduling and management
-- ✅ Push notifications for reminders
-- ✅ Real-time status updates
-
----
-
-## 🚀 Quick Start
-
-### **Part 1: ESP32 Firmware Setup (PlatformIO)**
-
-#### Prerequisites
-- PlatformIO IDE (VS Code extension recommended)
-- ESP32 DevKit board
-- USB cable for programming
-
-#### Installation Steps
-
-1. **Install PlatformIO**
-   ```bash
-   # In VS Code, install the PlatformIO IDE extension
-   # Or use CLI:
-   pip install platformio
-   ```
-
-2. **Create Project**
-   ```bash
-   mkdir pill-dispenser
-   cd pill-dispenser
-   
-   # Copy the provided files:
-   # - platformio.ini
-   # - src/main.cpp
-   ```
-
-3. **Upload to ESP32**
-   ```bash
-   # Connect ESP32 via USB
-   pio run --target upload
-   
-   # Or in VS Code PlatformIO:
-   # Click "Upload" button in the bottom toolbar
-   ```
-
-4. **Monitor Serial Output**
-   ```bash
-   pio device monitor
-   
-   # Or in VS Code: Click "Serial Monitor" button
-   # Baud rate: 115200
-   ```
-
-5. **Verify BLE is Advertising**
-   - Open Serial Monitor
-   - You should see: "✓ BLE advertising started"
-   - Device name: "PillDispenser"
+### Mobile App
+- Cross-platform: iOS, Android, and Web
+- Voice feedback using ElevenLabs TTS (4 voice personality profiles)
+- Medication scheduling with custom time picker
+- Adherence tracking and streak counter
+- Pushover push notifications to caregivers when medication is taken or missed
+- Automatic RTC sync from phone time on every connection
 
 ---
 
-### **Part 2: Mobile App Setup (Expo)**
+## 🛠 Hardware Components
 
-#### Prerequisites
-- Node.js 18+ and npm
-- Expo CLI
-- iOS Simulator (Mac) or Android Emulator
-- Physical device (recommended for BLE testing)
-
-#### Installation Steps
-
-1. **Install Expo CLI**
-   ```bash
-   npm install -g expo-cli
-   ```
-
-2. **Create App and Install Dependencies**
-   ```bash
-   cd pill-dispenser-app
-   npm install
-   ```
-
-3. **Add Missing Package**
-   ```bash
-   # DateTimePicker for iOS/Android
-   npm install @react-native-community/datetimepicker
-   ```
-
-4. **Configure ElevenLabs API (Optional)**
-   - Sign up at https://elevenlabs.io (free tier available)
-   - Get your API key
-   - Open `services/VoiceService.js`
-   - Replace `YOUR_ELEVENLABS_API_KEY` with your actual key
-   
-   **Note:** Voice will still work without API key, but will be text-based
-
-5. **Start Development Server**
-   ```bash
-   npm start
-   # or
-   expo start
-   ```
-
-6. **Run on Device**
-   
-   **For iOS:**
-   ```bash
-   # Install Expo Go app from App Store
-   # Scan QR code from terminal
-   # Or press 'i' to open iOS Simulator
-   ```
-   
-   **For Android:**
-   ```bash
-   # Install Expo Go app from Play Store
-   # Scan QR code from terminal
-   # Or press 'a' to open Android Emulator
-   ```
+| Component | Model | Purpose |
+|-----------|-------|---------|
+| Microcontroller | ESP32 DevKit | WiFi, web server, control logic |
+| Stepper Motor | Nema 17 | Star-wheel carousel rotation |
+| Motor Driver | TB6600 | Stepper control |
+| RTC | DS3231 | Scheduled dispensing |
+| Display | HiLetgo SH1107 128×128 | Status display |
+| Pump | INTLLAB DP-DIY Peristaltic | Liquid delivery |
+| MOSFET | XY-MOS | Pump switching |
+| IR Sensor | GP2A200LCS0F | Pill detection |
 
 ---
 
-## 📱 App Usage Guide
+## 🔌 Hardware Wiring
 
-### First Time Setup
-
-1. **Power on ESP32**
-   - Device will start BLE advertising
-   - LED should indicate power
-
-2. **Open App**
-   - App opens to connection screen
-   - Tap "Scan for Device"
-
-3. **Pair Device**
-   - App finds "PillDispenser"
-   - Tap "Connect"
-   - Wait for connection (~5 seconds)
-
-4. **Voice Welcome**
-   - Voice says: "Hey there! Welcome back!"
-   - Home screen appears
-
-### Adding Medication
-
-1. **Tap "+" or "Add Medication"**
-   - Navigate to Add Medication screen
-
-2. **Fill in Details**
-   - Medication name (e.g., "Aspirin")
-   - Select slot (1-8)
-   - Choose time
-   - Select days of week
-
-3. **Save**
-   - Tap "Save Medication"
-   - Voice confirms: "Perfect! I've added [name] to your schedule"
-   - Medication appears in list
-
-### Dispensing Medication
-
-**Manual Dispense:**
-1. Go to Home or Medications screen
-2. Find medication
-3. Tap "Dispense Now" or "Take"
-4. Voice says: "Okay, getting [name] ready for you right now!"
-5. Device rotates carousel and dispenses pill
-6. Voice confirms: "All set! Your [name] is ready"
-
-**Automatic Schedule:**
-- Device checks schedule every 30 seconds
-- At scheduled time:
-  - Buzzer sounds 3 beeps
-  - Carousel rotates to correct slot
-  - Pill dispenses
-  - Push notification sent to phone
-  - Voice reminder plays
-
----
-
-## 🎨 App Icon Design
-
-The app icon features a modern, friendly design:
-
+### TB6600 Stepper Driver
 ```
-┌─────────────────────────┐
-│                         │
-│     🏥 MediCare        │
-│                         │
-│   ╭─────────────╮      │
-│   │    💊       │      │
-│   │   ╱   ╲     │      │
-│   │  ╱     ╲    │      │
-│   │ ╱   +   ╲   │      │
-│   │╱─────────╲  │      │
-│   └───────────┘  │      │
-│                         │
-│  Gradient: #6366F1 →   │
-│            #8B5CF6 →   │
-│            #EC4899      │
-└─────────────────────────┘
+PUL+ → ESP32 GPIO 14
+PUL− → ESP32 GND
+DIR+ → ESP32 GPIO 27
+DIR− → ESP32 GND
+ENA+ → ESP32 5V
+ENA− → ESP32 GND
 ```
 
-**Icon Specifications:**
-- **Colors:** Gradient from Indigo (#6366F1) to Purple (#8B5CF6) to Pink (#EC4899)
-- **Symbol:** Medical cross + pill capsule
-- **Style:** Rounded, modern, friendly
-- **Background:** Gradient with soft shadows
+**DIP Switch Settings (1.0A / 200 steps/rev):**
+```
+SW1 ON  SW2 ON  SW3 OFF  SW4 ON  SW5 OFF  SW6 ON
+```
 
-**To Create Icon:**
-1. Use Figma, Sketch, or similar tool
-2. Create 1024x1024px canvas
-3. Apply gradient background
-4. Add white medical cross
-5. Add pill capsule icon
-6. Export as PNG
+### DS3231 RTC
+```
+VCC → ESP32 3.3V
+GND → ESP32 GND
+SDA → ESP32 GPIO 21
+SCL → ESP32 GPIO 22
+```
 
-**Icon Files Needed:**
-- `assets/icon.png` - 1024x1024px
-- `assets/adaptive-icon.png` - 1024x1024px (Android)
-- `assets/splash.png` - 1284x2778px
-- `assets/notification-icon.png` - 96x96px (Android)
+### SH1107 OLED (128×128)
+```
+VCC → ESP32 3.3V
+GND → ESP32 GND
+SDA → ESP32 GPIO 21
+SCL → ESP32 GPIO 22
+I2C Address: 0x3C
+```
+
+### XY-MOS MOSFET (Pump)
+```
+IN  → ESP32 GPIO 25
+GND → ESP32 GND
+V+  → 12V Supply (+)
+V−  → 12V Supply (−) + ESP32 GND (shared)
+OUT+ → Pump (+)
+OUT− → Pump (−)
+```
+
+### GP2A200LCS0F IR Sensor
+```
+VCC → ESP32 5V
+GND → ESP32 GND
+OUT → 10kΩ to 3.3V → ESP32 GPIO 34
+```
+⚠️ The 10kΩ pull-up resistor is required. Sensor is active LOW.
 
 ---
 
-## 🗂️ Project Structure
+## 🚀 Firmware Setup (PlatformIO)
+
+### Prerequisites
+- VS Code with PlatformIO extension
+- ESP32 board package
+
+### Installation
+
+1. Open the `firmware/` folder in PlatformIO
+2. Update WiFi credentials in `main.cpp`:
+```cpp
+const char* ssid     = "YourNetworkName";
+const char* password = "YourPassword";
+```
+3. Update Pushover credentials:
+```cpp
+const char* PUSHOVER_TOKEN = "your_app_token";
+const char* PUSHOVER_USER  = "your_user_key";
+```
+4. Flash:
+```bash
+pio run --target upload
+```
+5. Monitor:
+```bash
+pio device monitor --baud 115200
+```
+
+### API Endpoints
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/takeNow` | GET | Trigger manual dispense |
+| `/api/update` | POST | Sync schedule, RTC, and medication info |
+| `/api/status` | GET | Read current state |
+
+---
+
+## 📱 Mobile App Setup (Expo)
+
+### Prerequisites
+- Node.js 18+
+- Expo CLI (`npm install -g expo-cli`)
+- EAS CLI (`npm install -g eas-cli`)
+
+### Installation
+
+```bash
+cd pill-dispenser-app
+npm install
+npx expo install react-dom react-native-web
+```
+
+### Environment Variables
+
+Create a `.env` file in the app root:
+```
+EXPO_PUBLIC_ELEVENLABS_API_KEY=your_elevenlabs_key
+EXPO_PUBLIC_PUSHOVER_TOKEN=your_pushover_app_token
+EXPO_PUBLIC_PUSHOVER_USER=your_pushover_user_key
+```
+
+### Update ESP32 IP
+
+In `App.js`, update the IP to match your ESP32:
+```javascript
+const ESP32_IP = '192.168.x.x'; // check Serial Monitor on boot
+```
+
+### Run in Development
+```bash
+npx expo start           # local network
+npx expo start --tunnel  # for iOS via Expo Go on any network
+```
+
+### Build Android APK
+```bash
+eas build --platform android --profile preview
+```
+Generates a QR code for direct APK installation. No Play Store needed.
+
+### Build Web
+```bash
+npx expo export --platform web
+# Deploy dist/ folder to Netlify or Vercel
+```
+
+### iOS Without Apple Developer Account
+Install **Expo Go** from the App Store, then run `npx expo start --tunnel` and scan the QR code with the iPhone camera.
+
+---
+
+## 📲 Notifications (Pushover)
+
+The system sends push notifications via [Pushover](https://pushover.net):
+
+| Event | Trigger | Message |
+|-------|---------|---------|
+| ✅ Medication Taken | User presses Take Now | "[Name] has taken their [Med] at [Time]" |
+| ⚠️ Medication Missed | ESP32 auto-dispenses | "[Name] missed their [Med]. Dispenser released automatically." |
+
+### Setup
+1. Create account at pushover.net
+2. Create an application → copy **API Token**
+3. Copy your **User Key** from the dashboard
+4. Install Pushover app on caregiver's phone
+5. Add credentials to `.env` (app) and `main.cpp` (firmware)
+
+---
+
+## 🌐 Live Web App
+
+The web version is deployed at:
+**https://scoobysnack.netlify.app**
+
+---
+
+## 🗂 Project Structure
 
 ```
-pill-dispenser/                 # ESP32 Firmware
-├── platformio.ini
-└── src/
-    └── main.cpp
-
-pill-dispenser-app/            # Mobile App
-├── package.json
-├── app.json
-├── App.js
-├── services/
-│   ├── BLEService.js
-│   └── VoiceService.js
-├── screens/
-│   ├── HomeScreen.js
-│   ├── ConnectionScreen.js
-│   ├── MedicationsScreen.js
-│   ├── AddMedicationScreen.js
-│   └── SettingsScreen.js
-└── assets/
-    ├── icon.png
-    ├── adaptive-icon.png
-    ├── splash.png
-    └── notification-icon.png
+SMDG29/
+├── firmware/
+│   ├── platformio.ini
+│   └── src/
+│       └── main.cpp          # ESP32 firmware
+│
+└── pill-dispenser-app/
+    ├── App.js                # Main React Native app (single file)
+    ├── app.json              # Expo config
+    ├── eas.json              # EAS Build config
+    ├── .env                  # API keys (not committed)
+    └── assets/
+        └── splash.png        # App icon and splash screen
 ```
 
 ---
 
 ## 🔧 Troubleshooting
 
-### ESP32 Issues
+### ESP32 — WiFi Not Connecting
+- ESP32 only supports **2.4GHz** — ensure your hotspot/router is broadcasting 2.4GHz
+- Verify SSID and password match exactly (case-sensitive)
+- Run the network scanner sketch to confirm the ESP32 can see the network
+- If using a phone hotspot, a different phone must run the app (a phone cannot connect to its own hotspot)
 
-**Problem: Upload fails**
-- Solution: Press BOOT button while uploading
-- Check USB cable (must be data cable, not charge-only)
-- Verify COM port in Device Manager
+### ESP32 — I2C Error -1 (Wire.cpp)
+- Check SDA/SCL wiring on both the RTC and OLED
+- Ensure both devices share the same GND as the ESP32
+- Run I2C scanner to confirm device addresses
 
-**Problem: BLE not advertising**
-- Check serial monitor for errors
-- Ensure NimBLE library installed
-- Reset ESP32 (press EN button)
+### App — Cannot Connect to Dispenser
+- Phone and ESP32 must be on the **same WiFi network**
+- Confirm `ESP32_IP` in `App.js` matches the IP shown in Serial Monitor on boot
+- Ensure `usesCleartextTraffic: true` is set in `app.json` for Android
 
-**Problem: Motors not moving**
-- Check power supply (12V for motors)
-- Verify EN pin is LOW (enabled)
-- Test with 9V battery first
+### App — Voice Not Working
+- Confirm `EXPO_PUBLIC_ELEVENLABS_API_KEY` is set in `.env`
+- Restart Expo with `npx expo start --clear`
+- Check Expo logs for `[Voice] API error:`
 
-### App Issues
-
-**Problem: Can't find device**
-- Ensure ESP32 is powered and advertising
-- Check Bluetooth is enabled on phone
-- Grant location permissions (required for BLE on Android)
-- Try restarting app
-
-**Problem: Connection fails**
-- Move phone closer to ESP32
-- Restart ESP32
-- Clear Bluetooth cache (Android)
-- Reinstall app
-
-**Problem: No voice feedback**
-- Check ElevenLabs API key is configured
-- Verify phone volume is up
-- Check VoiceService.js console logs
-
----
-
-## 🎯 Hardware Pin Mapping
-
-```
-ESP32 Pin  →  Function
-─────────────────────────
-GPIO25     →  Motor1 STEP
-GPIO26     →  Motor1 DIR
-GPIO27     →  Motor1 EN
-GPIO34     →  Motor1 DIAG
-
-GPIO14     →  Motor2 STEP
-GPIO12     →  Motor2 DIR
-GPIO13     →  Motor2 EN
-GPIO35     →  Motor2 DIAG
-
-GPIO32     →  Valve Dispense
-GPIO33     →  Valve Fill
-
-GPIO4      →  Pill Sensor
-GPIO18     →  Buzzer
-
-GPIO21     →  I2C SDA (RTC, LCD)
-GPIO22     →  I2C SCL (RTC, LCD)
-```
-
----
-
-## 📡 BLE Communication Protocol
-
-### Service UUID
-```
-4fafc201-1fb5-459e-8fcc-c5c9c331914b
-```
-
-### Characteristics
-
-**Command (Write):**
-```
-UUID: beb5483e-36e1-4688-b7f5-ea07361b26a8
-Format: JSON
-Example:
-{
-  "action": "dispense",
-  "slot": 2
-}
-```
-
-**Status (Read/Notify):**
-```
-UUID: beb5483e-36e1-4688-b7f5-ea07361b26a9
-Format: JSON
-Example:
-{
-  "status": "idle",
-  "slot": 0,
-  "medicationCount": 3,
-  "time": { "hour": 14, "minute": 30 }
-}
-```
-
-**Medications (Read/Notify):**
-```
-UUID: beb5483e-36e1-4688-b7f5-ea07361b26aa
-Format: JSON
-Example:
-{
-  "medications": [
-    {
-      "id": "uuid",
-      "name": "Aspirin",
-      "slot": 0,
-      "hour": 8,
-      "minute": 0,
-      "enabled": true,
-      "taken": false
-    }
-  ]
-}
-```
-
----
-
-## 🎤 Voice Feedback Examples
-
-The app uses human-like phrases with emotional context:
-
-**Welcome:**
-- "Hey there! Welcome back! How are you feeling today?"
-- "Hi! Good to see you! Ready to stay on track with your medications?"
-
-**Medication Added:**
-- "Perfect! I've added {name} to your schedule. You're doing great!"
-- "Got it! {name} is now in your routine. I'll make sure you don't miss it."
-
-**Reminder:**
-- "Hey, it's time for your {name}! Let's take care of you real quick."
-- "Hi there! Just a gentle reminder - it's {name} time. You've got this!"
-
-**Encouragement:**
-- "You're doing such a great job staying on top of your health!"
-- "Your consistency is inspiring! Every day you're taking care of yourself matters."
-
----
-
-## 🔐 Security Notes
-
-- BLE connection is paired and encrypted
-- No medication data stored in cloud
-- All data local to device and phone
-- API keys should be kept secure
-- Consider implementing PIN/biometric lock for app
-
----
-
-## 📝 License
-
-This project is created for educational purposes as part of the SMDG29 senior design project.
+### Motor Not Moving
+- Verify PUL+/PUL− and DIR+/DIR− are not swapped
+- Check TB6600 DIP switches match the current setting above
+- Confirm ESP32 GND and 12V supply (−) are tied together
 
 ---
 
 ## 👥 Team
 
-SMDG29 - Automated Pill Dispenser for Seniors
+**SMDG29 — University of Illinois Chicago**
+Senior Design Capstone Project
 
 ---
 
-## 🆘 Support
+## ⚠️ Disclaimer
 
-For issues or questions:
-1. Check troubleshooting section above
-2. Review serial monitor output (ESP32)
-3. Check console logs in Expo (app)
-4. Verify all connections and configurations
-
----
-
-## 🎉 Enjoy!
-
-Your smart pill dispenser is now ready! Stay healthy and never miss a medication! 💊
-
-**Remember:** This device is a helpful tool but should not replace professional medical advice. Always consult with healthcare providers about your medications.
+Scooby Snack is a senior design prototype intended for demonstration purposes. It is not a certified medical device and should not be used as a substitute for professional medical guidance or supervision.
