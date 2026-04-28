@@ -10,8 +10,8 @@
 #include <WiFiClientSecure.h>
 
 // --- Configuration ---
-const char* ssid     = "OityToity";
-const char* password = "YourRandomUncle26";
+const char* ssid     = "USER_SSID"; //SSID for User
+const char* password = "USER_PASSWORD"; //Password for Wifi
 
 #define STEP_PIN      14
 #define DIR_PIN       27
@@ -26,7 +26,7 @@ AccelStepper     stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
 WebServer        server(80);
 
 // --- Global State ---
-String userName    = "Space Cowboy";
+String userName    = "Space Cowboy"; //Default UserName 
 String medName     = "None";
 String medTime     = "00:00";
 int    targetHour   = -1;
@@ -34,8 +34,8 @@ int    targetMinute = -1;
 bool   timerActive  = false;
 
 // ─── Pushover credentials — fill these in before flashing ─────────────────────
-const char* PUSHOVER_TOKEN = "YOUR_PUSHOVER_APP_TOKEN";   // ← replace
-const char* PUSHOVER_USER  = "YOUR_PUSHOVER_USER_KEY";    // ← replace
+const char* PUSHOVER_TOKEN = "YOUR_PUSHOVER_APP_TOKEN";   // Push Notification
+const char* PUSHOVER_USER  = "YOUR_PUSHOVER_USER_KEY";    //
 
 // --- Logo Data (128x128px, fresh conversion from splash.png) ---
 const unsigned char logo_bmp[] PROGMEM = {
@@ -222,7 +222,7 @@ void updateDisplay() {
 }
 
 // ─── Pill Detection ───────────────────────────────────────────────────────────
-// Monitors the IR sensor for up to windowMs after dispensing.
+// Monitoring the IR sensor for up to windowMs after dispensing.
 // Logs detection start, end, and duration to Serial.
 void detectPill(unsigned long windowMs = 8000) {
     Serial.println("[IR] Waiting for pill detection...");
@@ -266,7 +266,7 @@ void runDispenseSequence() {
     delay(6000);
     Serial.println(">>> Step 3: Pumping liquid (6s)...");
     digitalWrite(PUMP_PIN, HIGH);
-    delay(40000); // run pump for 10 seconds to ensure pill is fully dispensed
+    delay(40000); // run pump for 40 seconds to ensure pill is fully dispensed
     digitalWrite(PUMP_PIN, LOW);
     Serial.println(">>> Sequence Complete.");
 }
