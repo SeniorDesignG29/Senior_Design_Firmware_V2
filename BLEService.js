@@ -6,7 +6,7 @@ class BLEService {
     this.device = null;
     this.isConnected = false;
     
-    // Your ESP32 UUIDs (from your firmware)
+    // ESP32 UUIDs (from firmware)
     this.SERVICE_UUID = '12345678-1234-1234-1234-123456789abc';
     this.MEDICATION_CHAR_UUID = '12345678-1234-1234-1234-123456789abd';
     this.DISPENSE_CHAR_UUID = '12345678-1234-1234-1234-123456789abe';
