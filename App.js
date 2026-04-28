@@ -35,7 +35,7 @@ console.log('[Config] Pushover user set:',  !!PUSHOVER_USER);
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DEFAULT_USER_NAME  = 'Space Cowboy';
-const ESP32_IP           = '10.244.175.209';
+const ESP32_IP           = '10.28.194.209';
 const STORAGE_ROOT       = FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? '';
 const STORAGE_FILE_PATH  = STORAGE_ROOT ? `${STORAGE_ROOT}medication-app-data.json` : '';
 const UTF8_ENCODING      = 'utf8';
