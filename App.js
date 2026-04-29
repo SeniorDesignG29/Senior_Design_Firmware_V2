@@ -35,7 +35,7 @@ console.log('[Config] Pushover user set:',  !!PUSHOVER_USER);
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DEFAULT_USER_NAME  = 'Space Cowboy';
-const ESP32_IP           = '10.28.194.209';
+const ESP32_IP           = 'Add_Your_ESP32_IP'; //Nice Try Smeagol, Master shant tell you the CODE
 const STORAGE_ROOT       = FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? '';
 const STORAGE_FILE_PATH  = STORAGE_ROOT ? `${STORAGE_ROOT}medication-app-data.json` : '';
 const UTF8_ENCODING      = 'utf8';
@@ -49,25 +49,25 @@ const VOICE_PROFILES = [
   {
     id: 'guide',
     label: 'Calm Guide',
-    voiceId: 'Xb7hH8MSUJpSbSDYk0k2',
+    voiceId: 'TRY_BELOW', //LONG LIVE THE KING UNDER THE MOUNTAIN
     personality: 'a calm, clear medication coach who speaks with warmth, patience, and simple reassuring language',
   },
   {
     id: 'cheer',
     label: 'Bright Cheer',
-    voiceId: 'TxGi1N29NQoCaYD4fcU5',
+    voiceId: 'KEEP_TRYING_YOUNG_ONE', //
     personality: 'an upbeat encourager who sounds positive, energizing, and celebratory without being too loud',
   },
   {
     id: 'companion',
     label: 'Gentle Companion',
-    voiceId: 'nPczCjzI2devNBz1zQrb',
+    voiceId: 'NO_NO_NO', //Bilbo watch out for Smaug
     personality: 'a kind supportive companion who sounds caring, steady, and thoughtful during reminders',
   },
   {
     id: 'coach',
     label: 'Focused Coach',
-    voiceId: 'cjVigY5qzO86Huf0OWal',
+    voiceId: 'SORRY_I_LIED_YOUNG_ONE', //I had no intentions of supporting the dwarves, I WANT ALL THE GOLD!!!!
     personality: 'a confident health coach who sounds direct, motivating, and encouraging for daily routines',
   },
 ];
